@@ -16,8 +16,12 @@
 #include "include/org_rocksdb_RocksEnv.h"
 #include "include/org_rocksdb_RocksMemEnv.h"
 #include "include/org_rocksdb_TimedEnv.h"
+#include "include/org_rocksdb_ZenfsEnv.h"
 #include "portal.h"
 #include "rocksjni/cplusplus_to_java_convert.h"
+
+// ZenfsEnv bridge requires the ZenFS plugin (ROCKSDB_PLUGINS=zenfs).
+#include "plugin/zenfs/fs/fs_zenfs.h"
 
 /*
  * Class:     org_rocksdb_Env
@@ -175,6 +179,47 @@ jlong Java_org_rocksdb_RocksMemEnv_createMemEnv(JNIEnv*, jclass,
  */
 void Java_org_rocksdb_RocksMemEnv_disposeInternalJni(JNIEnv*, jclass,
                                                      jlong jhandle) {
+  auto* e = reinterpret_cast<ROCKSDB_NAMESPACE::Env*>(jhandle);
+  assert(e != nullptr);
+  delete e;
+}
+
+/*
+ * Class:     org_rocksdb_ZenfsEnv
+ * Method:    createZenfsEnv
+ * Signature: (Ljava/lang/String;)J
+ *
+ * Constructs a CompositeEnv wrapping a ZenFS FileSystem for the given raw
+ * zoned block device name (no /dev/ prefix). Returns 0 on failure; the
+ * Java-side ctor turns that into a RuntimeException.
+ */
+jlong Java_org_rocksdb_ZenfsEnv_createZenfsEnv(JNIEnv* env, jclass,
+                                                jstring jzbd_name) {
+  const char* zbd_name_c = env->GetStringUTFChars(jzbd_name, nullptr);
+  if (zbd_name_c == nullptr) {
+    return 0;
+  }
+  std::string zbd_name(zbd_name_c);
+  env->ReleaseStringUTFChars(jzbd_name, zbd_name_c);
+
+  ROCKSDB_NAMESPACE::FileSystem* fs = nullptr;
+  ROCKSDB_NAMESPACE::Status s = ROCKSDB_NAMESPACE::NewZenFS(&fs, zbd_name);
+  if (!s.ok() || fs == nullptr) {
+    return 0;
+  }
+  std::shared_ptr<ROCKSDB_NAMESPACE::FileSystem> shared_fs(fs);
+  std::unique_ptr<ROCKSDB_NAMESPACE::Env> composite_env =
+      ROCKSDB_NAMESPACE::NewCompositeEnv(shared_fs);
+  return GET_CPLUSPLUS_POINTER(composite_env.release());
+}
+
+/*
+ * Class:     org_rocksdb_ZenfsEnv
+ * Method:    disposeInternalJni
+ * Signature: (J)V
+ */
+void Java_org_rocksdb_ZenfsEnv_disposeInternalJni(JNIEnv*, jclass,
+                                                   jlong jhandle) {
   auto* e = reinterpret_cast<ROCKSDB_NAMESPACE::Env*>(jhandle);
   assert(e != nullptr);
   delete e;
