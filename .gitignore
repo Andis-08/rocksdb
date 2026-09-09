@@ -112,3 +112,18 @@ tools/__pycache__/
 # Keep documentation trackable even if broader ignores match names like "*_test".
 !docs/
 !docs/**
+
+# Bundled third-party compression libraries downloaded/extracted at build time.
+bzip2-*/
+bzip2-*.tar.gz
+lz4-*/
+lz4-*.tar.gz
+snappy-*/
+snappy-*.tar.gz
+zlib-*/
+zlib-*.tar.gz
+zstd-*/
+zstd-*.tar.gz
+
+# JMH benchmark build output.
+java/jmh/target/
